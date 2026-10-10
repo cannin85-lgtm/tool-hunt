@@ -30,5 +30,76 @@ render();
 <script>
 const SUPABASE_URL = 'https://ijwvcnbfxuazctuljime.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_rWCSGWfb-lvtSaxPXDm50Q_Nb0Xwfk6';
+  async function teacherSignIn() {
+  const email = prompt('Enter your teacher email:');
+  if (!email) return null;
+
+  const password = prompt('Enter your teacher password:');
+  if (!password) return null;
+
+  const response = await fetch(SUPABASE_URL + '/auth/v1/token?grant_type=password', {
+    method: 'POST',
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ email, password })
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    alert('Sign-in failed: ' + (data.msg || data.error_description || data.error));
+    return null;
+  }
+
+  return data.access_token;
+}
+  $('publishBtn').onclick = async () => {
+  if (!tools.length) {
+    alert('Add at least one tool before publishing.');
+    return;
+  }
+
+  const token = await teacherSignIn();
+  if (!token) return;
+
+  const button = $('publishBtn');
+  button.disabled = true;
+  button.textContent = 'Publishing...';
+
+  try {
+    const response = await fetch(SUPABASE_URL + '/rest/v1/Games?select=id', {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': 'Bearer ' + token,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
+      },
+      body: JSON.stringify({
+        game_data: {
+          title: $('titleInput').value || 'Tool Hunt',
+          image,
+          tools,
+          gameType: 'practice'
+        }
+      })
+    });
+
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.message || 'Publishing failed');
+    }
+
+    alert('Game saved! Next we will connect the student link.');
+    console.log('Published game ID:', result[0].id);
+  } catch (error) {
+    alert('Publishing failed: ' + error.message);
+  } finally {
+    button.disabled = false;
+    button.textContent = '🌐 Publish Game';
+  }
+};
 </script>
 </body></html>
