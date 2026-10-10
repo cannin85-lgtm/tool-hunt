@@ -1,1 +1,160 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Tool Hunt — School Access Test</title><style>body{font:18px system-ui,Arial;max-width:650px;margin:10vh auto;padding:24px;line-height:1.55;background:#f7f9fb;color:#17253a}.card{background:white;padding:30px;border-radius:18px;box-shadow:0 4px 25px #10203015}a.button{display:inline-block;background:#155fba;color:white;padding:12px 20px;border-radius:9px;text-decoration:none;font-weight:700}small{color:#526173}</style></head><body><main class="card"><h1>Tool Hunt</h1><p>School website access test</p><p>If you can read this page on a school computer, the website itself is loading.</p><p><a class="button" href="editor.html">Open Teacher Editor</a></p><small>This is a test, not the finished one-click publishing service. The editor can create and export games, but public student links still need a publishing system.</small></main></body></html>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tool Hunt — Student Game</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f3f6fa;color:#172b44;font:16px system-ui,Arial}
+header{background:#172b44;color:white;padding:20px 25px}
+header h1{margin:0;font-size:25px}
+main{max-width:1250px;margin:25px auto;padding:0 15px}
+.layout{display:grid;grid-template-columns:2fr 1fr;gap:18px}
+.panel{background:white;padding:18px;border-radius:14px;box-shadow:0 3px 14px #172b4415}
+.scene{position:relative}
+.scene img{width:100%;display:block;border-radius:9px}
+.marker{position:absolute;transform:translate(-50%,-50%);width:34px;height:34px;border:2px solid white;border-radius:50%;background:#f59e0b;color:white;font-weight:bold;cursor:pointer}
+.marker.found{background:#16a34a}
+button{font:inherit;cursor:pointer;padding:10px 15px;border:0;border-radius:9px}
+.choice{display:block;width:100%;margin:8px 0;text-align:left;background:#e8eef6}
+.choice:hover{background:#cddff5}
+.primary{background:#1769d2;color:white}
+.hidden{display:none}
+.note{color:#52657b}
+.stat{font-weight:bold}
+#feedback{min-height:25px}
+@media(max-width:750px){.layout{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header><h1 id="heading">🔎 Tool Hunt</h1></header>
+<main>
+<p id="status">Loading your game...</p>
+<div id="game" class="layout hidden">
+<section class="panel">
+<div id="scene" class="scene">
+<img id="photo" alt="Tool identification activity">
+</div>
+</section>
+<aside class="panel">
+<h2>Find the Tools</h2>
+<p id="progress" class="stat"></p>
+<p class="note">Click a question mark and identify the tool. You can try as many times as you like.</p>
+<div id="quiz" class="hidden">
+<h3>Which tool did you find?</h3>
+<div id="choices"></div>
+<p id="feedback" class="note"></p>
+</div>
+<p id="done" class="stat"></p>
+<button id="restart" class="primary">↻ Restart</button>
+</aside>
+</div>
+</main>
+<script>
+const SUPABASE_URL = 'https://ljwvcnbfxuazctuljime.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_rWCSGWfb-lvtSaxPXDm50Q_Nb0Xwfk6';
+
+const $ = id => document.getElementById(id);
+let gameData, found = new Set(), answered = new Set(), active = null;
+
+async function loadGame() {
+  const id = new URLSearchParams(location.search).get('game');
+
+  if (!id || !/^\d+$/.test(id)) {
+    $('status').textContent = 'No game selected. Ask your teacher for a Tool Hunt game link.';
+    return;
+  }
+
+  try {
+    const response = await fetch(
+      SUPABASE_URL + '/rest/v1/Games?id=eq.' + encodeURIComponent(id) + '&select=game_data',
+      {headers:{apikey:SUPABASE_KEY}}
+    );
+
+    if (!response.ok) throw new Error('Unable to load game');
+
+    const rows = await response.json();
+    if (!rows.length) throw new Error('Game not found');
+
+    gameData = rows[0].game_data;
+    if (!gameData || !Array.isArray(gameData.tools) || !gameData.image) {
+      throw new Error('Game data is incomplete');
+    }
+
+    $('heading').textContent = '🔎 ' + (gameData.title || 'Tool Hunt');
+    $('photo').src = gameData.image;
+    $('status').classList.add('hidden');
+    $('game').classList.remove('hidden');
+    render();
+  } catch (error) {
+    $('status').textContent = 'Could not open game: ' + error.message;
+  }
+}
+
+function render() {
+  const scene = $('scene');
+  scene.querySelectorAll('.marker').forEach(el => el.remove());
+
+  gameData.tools.forEach(tool => {
+    const marker = document.createElement('button');
+    marker.className = 'marker' + (answered.has(tool.id) ? ' found' : '');
+    marker.style.left = tool.x + '%';
+    marker.style.top = tool.y + '%';
+    marker.textContent = answered.has(tool.id) ? '✓' : '?';
+    marker.onclick = () => showQuiz(tool);
+    scene.appendChild(marker);
+  });
+
+  $('progress').textContent = found.size + ' / ' + gameData.tools.length + ' correct';
+  $('done').textContent = answered.size === gameData.tools.length
+    ? 'Great work! You found all the tools.'
+    : '';
+}
+
+function showQuiz(tool) {
+  active = tool;
+  $('quiz').classList.remove('hidden');
+  $('feedback').textContent = '';
+  $('choices').innerHTML = '';
+
+  const others = [...new Set(gameData.tools.map(t => t.name))]
+    .filter(name => name !== tool.name)
+    .sort(() => Math.random() - 0.5)
+    .slice(0, 3);
+
+  const options = [tool.name, ...others].sort(() => Math.random() - 0.5);
+
+  options.forEach(name => {
+    const button = document.createElement('button');
+    button.className = 'choice';
+    button.textContent = name;
+
+    button.onclick = () => {
+      if (name === active.name) {
+        found.add(active.id);
+        answered.add(active.id);
+        $('feedback').textContent = 'Correct! You can revisit this tool anytime.';
+      } else {
+        $('feedback').textContent = 'Not quite. Try again.';
+      }
+      render();
+    };
+
+    $('choices').appendChild(button);
+  });
+}
+
+$('restart').onclick = () => {
+  found.clear();
+  answered.clear();
+  active = null;
+  $('quiz').classList.add('hidden');
+  render();
+};
+
+loadGame();
+</script>
+</body>
+</html>
