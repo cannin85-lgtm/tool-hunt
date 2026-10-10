@@ -92,7 +92,8 @@ const SUPABASE_KEY = 'sb_publishable_rWCSGWfb-lvtSaxPXDm50Q_Nb0Xwfk6';
       throw new Error(result.message || 'Publishing failed');
     }
 
-    alert('Game saved! Next we will connect the student link.');
+    const studentLink = 'https://cannin85-lgtm.github.io/tool-hunt/?game=' + result[0].id;
+prompt('Game published! Copy this student link into Google Classroom:', studentLink);
     console.log('Published game ID:', result[0].id);
   } catch (error) {
     alert('Publishing failed: ' + error.message);
